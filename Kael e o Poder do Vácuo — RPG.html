@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="pt"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Kael e o Poder do Vácuo — RPG</title>
+<style>
+:root{--bg:#f3efe6;--fg:#1a1a24;--pn:#dcd5c4;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0e0e16;--fg:#e8e6f0;--pn:#232336}}
+:root[data-theme="dark"]{--bg:#0e0e16;--fg:#e8e6f0;--pn:#232336}
+html,body{margin:0;background:var(--bg);color:var(--fg);font-family:system-ui,sans-serif;-webkit-user-select:none;user-select:none;touch-action:none}
+body{display:flex;flex-direction:column;align-items:center;gap:8px;padding:8px}
+canvas{width:min(100%,420px);aspect-ratio:1;image-rendering:auto;background:#000;border-radius:8px}
+#q{font-size:14px;text-align:center;min-height:18px}
+#dlg{position:fixed;left:8px;right:8px;bottom:calc(8px + env(safe-area-inset-bottom,0px));max-width:420px;margin:auto;background:var(--pn);border:2px solid var(--fg);border-radius:10px;padding:12px;z-index:5;display:none}
+#dlg p{margin:0 0 10px;font-size:16px;line-height:1.4}
+button{font:inherit;color:var(--fg);background:var(--pn);border:2px solid var(--fg);border-radius:10px;padding:8px 14px}
+#pad{display:flex;justify-content:space-between;align-items:center;width:min(100%,420px)}
+#dp{display:grid;grid-template-columns:repeat(3,54px);grid-template-rows:repeat(3,54px);gap:4px}
+#dp button,#ab button{padding:0;font-size:22px}
+#ab{display:flex;gap:10px;align-items:flex-end}
+#ab button{width:62px;height:62px;border-radius:50%}
+#mn{display:flex;gap:8px}
+#mn button{padding:6px 12px;font-size:14px}
+</style></head><body>
+<div id="q"></div>
+<canvas id="c" width="320" height="320"></canvas>
+<div id="pad">
+<div id="dp"><span></span><button data-k="u">▲</button><span></span><button data-k="l">◀</button><span></span><button data-k="r">▶</button><span></span><button data-k="d">▼</button><span></span></div>
+<div id="ab"><button data-k="c" style="width:48px;height:48px">C</button><button data-k="b">B</button><button data-k="a">A</button></div>
+</div>
+<div id="mn"><button id="sv">💾 Salvar</button><button id="ld">📂 Carregar</button><button id="nw">🆕 Novo jogo</button></div>
+<div style="font-size:12px;opacity:.8;text-align:center">A espada/falar · B poder · C troca de poder · teclado: setas/WASD, Espaço, K, C</div>
+<div id="dlg"><p id="dt"></p><button id="dn">Continuar</button></div>
+<script>
+const $=id=>$$(id),$$=id=>document.getElementById(id);
+const c=$$('c'),x=c.getContext('2d'),T=16,N=20,SK='kael-rpg-save';
+const bg=document.createElement('canvas');bg.width=bg.height=320;const g=bg.getContext('2d');
+const ov=document.createElement('canvas');ov.width=ov.height=320;const o=ov.getContext('2d');
+let seed=1;const rnd=()=>(seed=(seed*16807)%2147483647)/2147483647;
+let G,map=0,st='dialog',keys={},pa=0,pb=0,pc=0,P,S,E=[],F=[],PT=[],TX=[],fr=0,note='',nt=0,lines=[],li=0,after=null;
+const SOL='#~HhdWC';
+const AB={f:['🔥','Fogo',3],b:['🦇','Avanço',2],m:['🟢','Escudo',4]};
+function newGame(){P={x:150,y:150,w:12,h:12,hp:10,mhp:10,mp:6,mmp:6,lv:1,xp:0,ab:[],sel:0,d:[0,1],inv:0,atk:0,cd:0,sh:0,ds:0,mv:0};S={met:0,chest:0,boss:0}}
+function mk(k){const m=[];for(let j=0;j<N;j++){m[j]=[];for(let i=0;i<N;i++){const e=i==0||j==0||i==N-1||j==N-1;m[j][i]=k==2?(e?'W':'S'):(e?'#':'.')}}
+const R=(a,b,w,h,ch)=>{for(let j=b;j<b+h;j++)for(let i=a;i<a+w;i++)m[j][i]=ch};
+if(k==0){R(2,2,5,2,'H');R(2,4,5,1,'h');m[4][4]='d';R(13,2,3,3,'~');R(3,9,16,2,'p');R(3,5,1,4,'p');R(19,9,1,2,'.');[[9,4],[16,7],[7,14],[12,13],[3,15],[15,16],[17,12]].forEach(([a,b])=>m[b][a]='#')}
+if(k==1){R(0,9,1,2,'.');R(9,0,2,1,'.');R(1,9,18,2,'p');R(9,1,2,8,'p');R(15,3,3,3,'~');seed=7;for(let n=0;n<45;n++){const a=1+Math.floor(rnd()*18),b=1+Math.floor(rnd()*18);if(m[b][a]=='.'&&!(a>=8&&a<=11&&b<12)&&!(b>=8&&b<=11))m[b][a]='#'}m[3][4]='C'}
+if(k==2){R(9,19,2,1,'S');R(3,3,2,2,'W');R(15,3,2,2,'W');R(3,12,2,2,'W');R(15,12,2,2,'W')}
+return m}
+const sol=(a,b,w,h)=>[[a,b],[a+w,b],[a,b+h],[a+w,b+h]].some(([p,q])=>{const r=G[Math.floor(q/T)];return !r||SOL.includes(r[Math.floor(p/T)]??'#')});
+function drawT(ch,i,j,k){const a=i*T,b=j*T;
+if(k==2){g.fillStyle=`hsl(235,18%,${20+rnd()*5}%)`;g.fillRect(a,b,T,T);g.strokeStyle='rgba(0,0,0,.35)';g.strokeRect(a+.5,b+.5,T-1,T-1);if(rnd()<.2){g.beginPath();g.moveTo(a+rnd()*T,b+rnd()*T);g.lineTo(a+rnd()*T,b+rnd()*T);g.stroke()}
+if(ch=='W'){g.fillStyle='#2c2c48';g.fillRect(a,b,T,T);g.fillStyle='#46466e';g.fillRect(a,b,T,4);g.fillStyle='#17172a';g.fillRect(a,b+T-3,T,3);g.strokeStyle='#1c1c34';g.strokeRect(a+.5,b+4.5,T-1,5)}return}
+g.fillStyle=ch=='p'?`hsl(35,35%,${42+rnd()*6}%)`:`hsl(112,38%,${27+rnd()*6}%)`;g.fillRect(a,b,T,T);
+if(ch=='p'){g.fillStyle='rgba(60,40,20,.5)';for(let n=0;n<3;n++)g.fillRect(a+rnd()*14,b+rnd()*14,2,1)}
+else{g.strokeStyle='rgba(150,220,90,.55)';for(let n=0;n<4;n++){const p=a+rnd()*15,q=b+4+rnd()*11;g.beginPath();g.moveTo(p,q);g.lineTo(p+(rnd()-.5)*3,q-3);g.stroke()}if(rnd()<.06){g.fillStyle=rnd()<.5?'#ffe27a':'#ff9ad0';g.fillRect(a+rnd()*13,b+rnd()*13,2,2)}}
+if(ch=='#'){g.fillStyle='rgba(0,0,0,.35)';g.beginPath();g.ellipse(a+8,b+14,8,3,0,0,7);g.fill();g.fillStyle='#4a2e18';g.fillRect(a+6,b+9,4,7);
+[['#1f5a2a',8,6,9],['#2b7a38',5,8,6],['#2b7a38',11,8,6],['#3c9a48',8,4,6]].forEach(([cl,u,v,r])=>{g.fillStyle=cl;g.beginPath();g.arc(a+u,b+v,r,0,7);g.fill()})}
+if(ch=='~'){const gr=g.createLinearGradient(a,b,a,b+T);gr.addColorStop(0,'#2f7fd0');gr.addColorStop(1,'#1d4f9a');g.fillStyle=gr;g.fillRect(a,b,T,T)}
+if(ch=='H'){g.fillStyle='#a8442f';g.fillRect(a,b,T,T);g.fillStyle='#8a3524';for(let n=4;n<T;n+=4)g.fillRect(a,b+n,T,1);g.fillStyle='#c9604a';g.fillRect(a,b,T,2)}
+if(ch=='h'||ch=='d'){g.fillStyle='#e6d3a8';g.fillRect(a,b,T,T);g.fillStyle='#b9a47a';g.fillRect(a,b,T,2);if(ch=='d'){g.fillStyle='#5a3a1f';g.fillRect(a+3,b+2,10,14);g.fillStyle='#ffd84a';g.fillRect(a+10,b+9,2,2)}else{g.fillStyle='#8fc8f0';g.fillRect(a+4,b+4,8,6);g.fillStyle='#6a4a2a';g.fillRect(a+7,b+4,2,6)}}
+if(ch=='C'){g.fillStyle='rgba(0,0,0,.35)';g.fillRect(a+1,b+13,14,3);g.fillStyle='#8a5a2b';g.fillRect(a+2,b+6,12,8);g.fillStyle='#a8713a';g.fillRect(a+2,b+4,12,4);g.fillStyle='#ffd84a';g.fillRect(a+7,b+7,2,3)}}
+function build(k,load){map=k;G=mk(k);if(k==1&&S.chest)G[3][4]='.';seed=k+3;for(let j=0;j<N;j++)for(let i=0;i<N;i++)drawT(G[j][i],i,j,k);
+E=[];F=[];seed=Date.now()%1000+1;
+if(k==1)for(let n=0;n<7;n++){let a,b,t=0;do{a=24+rnd()*270;b=24+rnd()*270;t++}while((sol(a,b,12,12)||Math.hypot(a-P.x,b-P.y)<90)&&t<60);E.push(en('fbm'[n%3],a,b))}
+if(k==2&&!S.boss){E.push(en('j',152,60));if(!load)say(['Jake: Então você achou a chave... Mas eu não vou deixar você passar!','Jake: Se esse tal poder existe, me mostre!'])}}
+function en(t,a,b){const h={f:3,b:2,m:4,j:16}[t];return{t,x:a,y:b,w:t=='j'?14:12,h:t=='j'?14:12,hp:h,mhp:h,kx:0,ky:0,ch:0}}
+function say(l,cb){lines=l;li=0;after=cb;st='dialog';$$('dlg').style.display='block';$$('dt').textContent=l[0];$$('dn').textContent='Continuar'}
+$$('dn').onclick=()=>{if(st=='dead'){return}li++;if(li<lines.length)$$('dt').textContent=lines[li];else{$$('dlg').style.display='none';st='play';const f=after;after=null;f&&f()}};
+function msg(s){note=s;nt=200}
+function save(m){try{localStorage.setItem(SK,JSON.stringify({map,x:P.x,y:P.y,P:{hp:P.hp,mhp:P.mhp,mp:P.mp,mmp:P.mmp,lv:P.lv,xp:P.xp,ab:P.ab,sel:P.sel},S}));if(m)msg('Jogo salvo ✅')}catch(e){if(m)msg('Não foi possível salvar aqui')}}
+function load(m){try{const d=JSON.parse(localStorage.getItem(SK));if(!d){if(m)msg('Nenhum save encontrado');return false}newGame();Object.assign(P,d.P,{x:d.x,y:d.y});S=d.S;build(d.map,1);if(m)msg('Save carregado 📂');return true}catch(e){if(m)msg('Erro ao carregar');return false}}
+function go(k,a,b){P.x=a;P.y=b;build(k);save()}
+function gain(n){P.xp+=n;const need=P.lv*18;if(P.xp>=need){P.xp-=need;P.lv++;P.mhp+=2;P.mmp+=2;P.hp=P.mhp;P.mp=P.mmp;msg('LEVEL UP! Nível '+P.lv+' ⭐');save()}}
+function boom(e,col,n){for(let i=0;i<n;i++)PT.push({x:e.x+6,y:e.y+6,vx:(Math.random()-.5)*3,vy:(Math.random()-.5)*3,l:30,c:col})}
+function dmg(e,n){e.hp-=n;TX.push({x:e.x,y:e.y,s:'-'+n,l:40,c:'#fff'});const a=Math.hypot(e.x-P.x,e.y-P.y)||1;e.kx=(e.x-P.x)/a*4;e.ky=(e.y-P.y)/a*4;
+if(e.hp<=0){E=E.filter(q=>q!==e);boom(e,e.t=='f'?'#ff7a30':e.t=='b'?'#a070e0':e.t=='m'?'#5fe080':'#6a9cff',20);
+if(e.t=='j'){S.boss=1;gain(60);save();say(['Jake: Eu estava errado... Você usou o poder para proteger os outros.','Jake: Desculpa, Kael. Seu poder é de verdade.','🏆 Kael libertou a Torre. Explore, suba de nível e salve quando quiser.'])}
+else{gain(8);if(!P.ab.includes(e.t)){P.ab.push(e.t);P.sel=P.ab.length-1;msg('Vácuo copiou: '+AB[e.t][0]+' '+AB[e.t][1])}}}}
+function atk(){const gv=gD();if(gv)return;if(P.atk>0)return;P.atk=10;const s={x:P.x+6+P.d[0]*14-11,y:P.y+6+P.d[1]*14-11,w:22,h:22};E.forEach(e=>{if(hit(s,e))dmg(e,1+(P.lv>>1))})}
+function gD(){if(Math.hypot(P.x-88,P.y-84)<30&&map==0){npc();return 1}if(map==1&&!S.chest&&Math.hypot(P.x+6-72,P.y+6-56)<28){S.chest=1;G[3][4]='.';build1();msg('Achou a Chave da Torre! 🗝️');save();return 1}return 0}
+function build1(){seed=map+3;for(let j=0;j<N;j++)for(let i=0;i<N;i++)drawT(G[j][i],i,j,map)}
+function npc(){P.hp=P.mhp;P.mp=P.mmp;if(!S.met){S.met=1;say(['Vovó: Kael, chegou a hora de contar a verdade.','Vovó: Você carrega o Vácuo. Ele copia a habilidade de quem você derrota.','Vovó: Jake diz que você não tem poder, mas isso é medo dele. Use o dom para o bem.','Vovó: Siga a estrada para a floresta e ache a chave da Torre. Eu curei seus ferimentos.'],()=>save())}
+else say(['Vovó: Descanse, meu neto. Você está curado.',S.chest?(S.boss?'Vovó: Estou orgulhosa de você, Kael.':'Vovó: A Torre fica ao norte da floresta. Tenha cuidado com o Jake.'):'Vovó: A chave está num baú na floresta, perto das árvores.'],()=>save())}
+function useB(){const k=P.ab[P.sel];if(!k||P.cd>0||P.mp<AB[k][2]){if(k&&P.mp<AB[k][2])msg('Sem MP!');return}P.mp-=AB[k][2];P.cd=35;
+if(k=='f')F.push({x:P.x+2,y:P.y+2,w:8,h:8,vx:P.d[0]*3.2,vy:P.d[1]*3.2});if(k=='b')P.ds=10;if(k=='m')P.sh=120}
+const hit=(a,b)=>a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y;
+function mv(e,dx,dy){if(!sol(e.x+dx,e.y,e.w,e.h))e.x+=dx;if(!sol(e.x,e.y+dy,e.w,e.h))e.y+=dy}
+function update(){fr++;if(nt>0)nt--;if(P.atk>0)P.atk--;if(P.cd>0)P.cd--;if(P.inv>0)P.inv--;if(P.sh>0)P.sh--;if(P.mp<P.mmp)P.mp=Math.min(P.mmp,P.mp+.012);
+if(pa){atk();pa=0}if(pb){useB();pb=0}if(pc){if(P.ab.length)P.sel=(P.sel+1)%P.ab.length;pc=0}
+const dx=(keys.r?1:0)-(keys.l?1:0),dy=(keys.d?1:0)-(keys.u?1:0);P.mv=dx||dy;if(P.mv)P.d=Math.abs(dx)>=Math.abs(dy)&&dx?[dx,0]:[0,dy];
+if(P.ds>0){P.ds--;mv(P,P.d[0]*4,P.d[1]*4)}else mv(P,dx*1.5,dy*1.5);
+if(map==0&&P.x>298)go(1,16,P.y);else if(map==1){if(P.x<6)go(0,280,P.y);else if(P.y<6){if(S.chest)go(2,P.x,280);else{P.y=12;msg('O portão da Torre está trancado 🔒')}}}else if(map==2&&P.y>298)go(1,P.x,20);
+F.forEach(f=>{f.x+=f.vx;f.y+=f.vy;E.forEach(e=>{if(!f.on&&hit(f,e)){f.on=1;dmg(e,2+(P.lv>>1))}});if(sol(f.x,f.y,f.w,f.h))f.on=1;PT.push({x:f.x+4,y:f.y+4,vx:0,vy:0,l:12,c:'#ffb040'})});F=F.filter(f=>!f.on);
+E.forEach(e=>{const a=Math.hypot(P.x-e.x,P.y-e.y)||1;let s={f:.55,m:.38,b:1,j:.7}[e.t];if(e.t=='j'){e.ch=(e.ch+1)%160;if(e.ch>135)s=2.6}
+let vx=(P.x-e.x)/a*s,vy=(P.y-e.y)/a*s;if(e.t=='b'&&fr%30<12){vx=Math.cos(fr)*1.2;vy=Math.sin(fr*1.3)*1.2}if(a>150&&e.t!='j'){vx=vy=0}
+mv(e,vx+e.kx,vy+e.ky);e.kx*=.8;e.ky*=.8;
+if(hit(P,e)&&P.inv<=0&&P.sh<=0&&P.ds<=0){const d=e.t=='j'?2:1;P.hp-=d;P.inv=60;TX.push({x:P.x,y:P.y,s:'-'+d,l:40,c:'#ff6060'});if(P.hp<=0){P.hp=0;st='dead';say(['Kael caiu... mas o Vácuo ainda pulsa. A vovó o levou de volta à vila.'],()=>{P.hp=Math.ceil(P.mhp/2);go(0,100,100)})}}});
+PT.forEach(p=>{p.x+=p.vx;p.y+=p.vy;p.l--});PT=PT.filter(p=>p.l>0);TX.forEach(t=>{t.y-=.5;t.l--});TX=TX.filter(t=>t.l>0)}
+function sh(a,b,r){x.fillStyle='rgba(0,0,0,.4)';x.beginPath();x.ellipse(a,b,r,r/2.2,0,0,7);x.fill()}
+function hero(){const a=P.x-2,b=P.y-8,s=Math.sin(fr/8)*(P.mv?1.8:.7);sh(P.x+6,P.y+13,7);
+x.fillStyle='#0a0a12';x.beginPath();x.moveTo(a+3,b+8);x.lineTo(a+13,b+8);x.lineTo(a+15-P.d[0]*3+s,b+22);x.lineTo(a+1-P.d[0]*3-s,b+22);x.fill();
+x.fillStyle='#262642';x.fillRect(a+4,b+9,8,8);x.fillStyle='#7a3cd0';x.fillRect(a+4,b+14,8,2);x.fillStyle='#e8c4a0';x.fillRect(a+4,b+2,8,7);
+x.fillStyle='#07070c';x.fillRect(a+3,b,10,4);x.fillRect(a+3,b+3,2,5);x.fillRect(a+11,b+3,2,5);x.fillRect(a+5,b-2,2,3);x.fillRect(a+9,b-2,2,3);
+if(P.d[1]<0)x.fillRect(a+3,b,10,9);else{x.fillStyle='#c070ff';x.shadowColor='#b060ff';x.shadowBlur=5;x.fillRect(a+5,b+5,2,2);x.fillRect(a+9,b+5,2,2);x.shadowBlur=0}
+if(P.sh>0){x.strokeStyle='rgba(95,224,128,.8)';x.lineWidth=2;x.beginPath();x.arc(P.x+6,P.y+4,14,0,7);x.stroke()}
+if(P.atk>0){const an=Math.atan2(P.d[1],P.d[0])-1.1+(10-P.atk)*.22;x.strokeStyle='#dfe8ff';x.lineWidth=3;x.beginPath();x.arc(P.x+6,P.y+6,17,an,an+.9);x.stroke()}}
+function foe(e){const b=Math.sin(fr/7+e.x)*1.5,X=e.x,Y=e.y;sh(X+6,Y+12,7);
+if(e.t=='f'){x.fillStyle='#e0452b';x.fillRect(X,Y+b,12,12);x.fillStyle='#ffb030';x.beginPath();x.moveTo(X+2,Y+b);x.lineTo(X+4,Y+b-6);x.lineTo(X+6,Y+b);x.lineTo(X+9,Y+b-5);x.lineTo(X+10,Y+b);x.fill()}
+else if(e.t=='b'){const w=fr%20<10?-3:3;x.fillStyle='#7a4bb0';x.fillRect(X+1,Y+3+b,10,7);x.fillStyle='#5a3590';x.beginPath();x.moveTo(X,Y+5+b);x.lineTo(X-7,Y+3+b+w);x.lineTo(X,Y+9+b);x.moveTo(X+12,Y+5+b);x.lineTo(X+19,Y+3+b+w);x.lineTo(X+12,Y+9+b);x.fill()}
+else if(e.t=='m'){x.fillStyle='rgba(76,196,106,.9)';x.beginPath();x.ellipse(X+6,Y+8,7+b/2,6-b/2,0,0,7);x.fill();x.fillStyle='rgba(255,255,255,.5)';x.fillRect(X+3,Y+4,3,2)}
+else{x.fillStyle='#e8d9b0';x.fillRect(X+1,Y-6,3,3);x.fillStyle='#3a6fd8';x.fillRect(X,Y+4,14,11);x.fillStyle='#d03030';x.fillRect(X,Y+3,14,2);x.fillStyle='#f0d060';x.fillRect(X,Y-4,14,7);x.fillRect(X+10,Y-6,3,3);x.fillStyle='#fff';x.fillRect(X+3,Y+1,2,2);x.fillRect(X+9,Y+1,2,2);x.fillStyle='#222';x.fillRect(X,Y-12,14,3);x.fillStyle='#e03030';x.fillRect(X,Y-12,14*e.hp/e.mhp,3);if(e.ch>135){x.strokeStyle='#fff';x.strokeRect(X-2,Y-3,18,20)}}
+if(e.t!='j'){x.fillStyle='#fff';x.fillRect(X+2,Y+5+(e.t=='m'?1:0),2,2);x.fillRect(X+8,Y+5+(e.t=='m'?1:0),2,2)}}
+function granny(){const X=88,Y=76;sh(X+6,Y+20,8);x.fillStyle='#6a3a9a';x.fillRect(X,Y+8,12,12);x.fillStyle='#e8c4a0';x.fillRect(X+2,Y+1,8,8);x.fillStyle='#ddd';x.fillRect(X+1,Y-1,10,4);x.fillRect(X+3,Y-4,6,4);x.fillStyle='#333';x.fillRect(X+3,Y+5,2,2);x.fillRect(X+7,Y+5,2,2);x.fillStyle='#8a5a2b';x.fillRect(X+13,Y+4,2,16);if(!S.met||fr%80<40){x.fillStyle='#ffd84a';x.font='bold 12px sans-serif';x.fillText('!',X+4,Y-8)}}
+function light(){o.globalCompositeOperation='source-over';o.clearRect(0,0,320,320);o.fillStyle=`rgba(5,5,22,${map==2?.88:map==1?.38:.12})`;o.fillRect(0,0,320,320);o.globalCompositeOperation='destination-out';
+const L=(px,py,r,a)=>{const q=o.createRadialGradient(px,py,0,px,py,r);q.addColorStop(0,`rgba(0,0,0,${a})`);q.addColorStop(1,'rgba(0,0,0,0)');o.fillStyle=q;o.beginPath();o.arc(px,py,r,0,7);o.fill()};
+L(P.x+6,P.y+6,map==2?75:130,1);F.forEach(f=>L(f.x+4,f.y+4,35,.9));if(map==2)[[4,4],[16,4],[4,13],[16,13]].forEach(([i,j])=>L(i*T,j*T,55+Math.sin(fr/6+i)*5,.9));x.drawImage(ov,0,0)}
+function bar(a,b,w,h,v,m,col){x.fillStyle='rgba(0,0,0,.6)';x.fillRect(a,b,w,h);x.fillStyle=col;x.fillRect(a,b,w*Math.max(0,v)/m,h)}
+function draw(){x.drawImage(bg,0,0);const tm=fr/20;
+for(let j=0;j<N;j++)for(let i=0;i<N;i++)if(G[j][i]=='~'){x.fillStyle='rgba(255,255,255,.25)';x.fillRect(i*T+((tm*4+j*5)%12),j*T+4+(j%3)*3,4,1)}
+if(map==2)[[4,4],[16,4],[4,13],[16,13]].forEach(([i,j])=>{x.fillStyle=`rgba(255,${150+Math.sin(fr/4+i)*40|0},40,.95)`;x.beginPath();x.arc(i*T,j*T,3+Math.sin(fr/3+j),0,7);x.fill()});
+if(map==0)granny();
+const ds=[...E.map(e=>({y:e.y,f:()=>foe(e)})),{y:P.y,f:()=>{if(P.inv%8<4)hero()}}].sort((a,b)=>a.y-b.y);ds.forEach(d=>d.f());
+F.forEach(f=>{x.fillStyle='#ff8a1e';x.beginPath();x.arc(f.x+4,f.y+4,5,0,7);x.fill();x.fillStyle='#ffe070';x.beginPath();x.arc(f.x+4,f.y+4,2.5,0,7);x.fill()});
+PT.forEach(p=>{x.fillStyle=p.c;x.globalAlpha=p.l/30;x.fillRect(p.x,p.y,3,3)});x.globalAlpha=1;
+light();x.font='bold 10px sans-serif';TX.forEach(t=>{x.fillStyle=t.c;x.fillText(t.s,t.x,t.y)});
+x.fillStyle='rgba(0,0,0,.55)';x.fillRect(4,4,104,44);x.fillStyle='#fff';x.font='bold 10px sans-serif';x.fillText('Kael  Nv '+P.lv,9,15);
+bar(9,19,94,6,P.hp,P.mhp,'#e04050');bar(9,28,94,6,P.mp,P.mmp,'#4a8ae8');bar(9,37,94,4,P.xp,P.lv*18,'#f0c840');
+const k=P.ab[P.sel];x.fillStyle='rgba(0,0,0,.55)';x.fillRect(266,4,50,22);x.font='14px sans-serif';x.fillText(k?AB[k][0]:'—',272,20);x.font='9px sans-serif';x.fillStyle='#fff';x.fillText(k?AB[k][1]:'',290,18);
+if(nt>0){x.fillStyle='rgba(0,0,0,.7)';x.fillRect(0,302,320,18);x.fillStyle='#fff';x.font='11px sans-serif';x.textAlign='center';x.fillText(note,160,315);x.textAlign='left'}
+$$('q').textContent=!S.met?'Missão: fale com a vovó (aperte A perto dela)':!S.chest?'Missão: ache a chave no baú da floresta':!S.boss?'Missão: abra a Torre e enfrente o Jake':'Missão cumprida! Suba de nível e salve seu jogo'}
+function loop(){if(st=='play')update();draw();requestAnimationFrame(loop)}
+const km={ArrowUp:'u',w:'u',ArrowDown:'d',s:'d',ArrowLeft:'l',a:'l',ArrowRight:'r',d:'r'};
+addEventListener('keydown',e=>{const k=km[e.key];if(k)keys[k]=1;if(e.key==' '||e.key=='j')pa=1;if(e.key=='k')pb=1;if(e.key=='c')pc=1});
+addEventListener('keyup',e=>{const k=km[e.key];if(k)keys[k]=0});
+document.querySelectorAll('[data-k]').forEach(b=>{const k=b.dataset.k;
+b.addEventListener('pointerdown',e=>{e.preventDefault();if(k=='a')pa=1;else if(k=='b')pb=1;else if(k=='c')pc=1;else keys[k]=1});
+['pointerup','pointerleave','pointercancel'].forEach(v=>b.addEventListener(v,()=>{if('abc'.indexOf(k)<0)keys[k]=0}))});
+$$('sv').onclick=()=>{if(st=='play')save(1)};$$('ld').onclick=()=>{if(st=='play')load(1)};
+$$('nw').onclick=()=>{try{localStorage.removeItem(SK)}catch(e){}location.reload()};
+newGame();G=mk(0);
+if(!load(0)){build(0);say(['Jake: Você não tem poder nenhum, Kael! Nunca teve e nunca vai ter!','Narrador: Kael, de cabelo e capa negros, ignora a provocação. Sua avó o espera perto da casa.'])}else{st='play';$$('dlg').style.display='none';msg('Save carregado 📂')}
+loop();
+</script></body></html>
